@@ -1,0 +1,182 @@
+
+Question2  "DMDBORN4"  "DMDEDUC2"  "DMDMARTZ"  "INDFMPIR"  "INDFMMPC"  "depressed"
+```{r}
+library("tidyr")
+library("dplyr")
+df = read.csv('data.csv')
+set.seed(600)
+train = sample(c(TRUE, FALSE), nrow(df), rep=TRUE, prob=c(0.8, 0.2))
+df_train = df[train, ]
+df_test = df[!train, ]
+
+q2 <- df %>%
+  select(contains("DM"),contains("IND"),depressed)
+  # names()
+q2 <- q2 %>% drop_na()
+q2_var <- q2[train,]
+
+q2_test <- q2[!train,]
+```
+
+(for plotting)
+```{r}
+# 加载必要的包
+# install.packages(c("glmnet", "caret", "dplyr", "tidyr", "ggplot2"))
+library(glmnet)
+library(caret)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# # 创建示例数据框
+# set.seed(123)
+# q1_var <- data.frame(
+#   X1 = rnorm(500),
+#   X2 = rnorm(500),
+#   X3 = factor(sample(c("A", "B", "C"), 500, replace = TRUE)),
+#   X4 = factor(sample(c("Yes", "No"), 500, replace = TRUE)),
+#   Y = rnorm(500)
+# )
+
+
+
+# 确保因子水平一致（如果有训练集和测试集，统一级别）
+# 这里仅为示例，假设所有因子水平在清理后的数据中均已包含
+# 可视化X1和X2对Y的影响
+ggplot(q2, aes(x = INDFMMPC, y = depressed, color = INDFMPIR)) +
+  geom_point() +
+  # geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "poor")
+
+
+```
+
+
+```{r}
+# 构建不含交互项的模型
+model_without_interactions <- lm(depressed ~ ., data = q2_var)
+summary(model_without_interactions)
+
+# 构建含交互项的模型（两两交互）
+model_with_interactions <- lm(depressed ~ .^2, data = q2_var)
+summary(model_with_interactions)
+
+# 进行F检验比较两个模型
+anova(model_without_interactions, model_with_interactions)
+```
+step model
+
+```{r}
+# 构建全模型（含所有两两交互项）
+full_model <- lm(depressed ~ .^2, data = q2_var)
+
+# 构建空模型
+empty_model <- lm(depressed ~ 1, data = q2_var)
+
+# 逐步选择（双向）
+step_model_2 <- step(empty_model, 
+                   scope = list(lower = empty_model, upper = full_model), 
+                   direction = "both", 
+                   trace = FALSE)
+
+# 查看最终模型
+summary(step_model_2)
+
+```
+
+Lasso
+```{r}
+# 创建模型矩阵，包括所有两两交互项
+x <- model.matrix(depressed ~ .^2, data = q2_var)[,-1]
+y <- q2_var$depressed
+
+# 拟合LASSO模型
+# set.seed(123)
+cv_lasso_2 <- cv.glmnet(x, y, alpha = 1)
+
+# 获取最佳lambda
+best_lambda <- cv_lasso$lambda.min
+print(paste("最佳 lambda:", best_lambda))
+
+# 查看LASSO选择的变量
+
+lasso_coef <- coef(cv_lasso, s = "lambda.min")
+print(lasso_coef)
+
+# 选择非零系数的变量（包括交互项）
+selected_vars <- rownames(lasso_coef)[which(lasso_coef != 0)]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+print("LASSO选择的变量和交互项：")
+print(selected_vars)
+```
+ridge
+```{r}
+# 交叉验证选择最佳lambda，alpha设为0表示岭回归
+cv_ridge <- cv.glmnet(x, y, family = "binomial", alpha = 0)
+best_lambda_ridge <- cv_ridge$lambda.min
+
+# 拟合岭回归模型
+ridge_model_2 <- glmnet(x, y, family = "binomial", alpha = 0, lambda = best_lambda_ridge)
+ridge_coef <- coef(ridge_model_2)
+print(ridge_coef)
+# 选择非零系数的变量（包括交互项）
+
+# choosing some items
+beta = 0.05
+selected_vars_r <- rownames(ridge_coef)[which(abs(ridge_coef) >beta)]
+selected_vars_r <- selected_vars_r[selected_vars_r != "(Intercept)"]
+# print("LASSO选择的变量和交互项：")
+print(selected_vars_r)
+```
+prediction
+```{r}
+library(dplyr)
+# library(ggplot2)
+
+# 假设你的训练集为 train_data，测试集为 q1_test
+q2_test <- q2_test[complete.cases(q2_test), ]
+factor_design <-  q2_test %>% select(-depressed) %>% names()
+#   
+# predictors <- names(q2_test)[names(q2_test) != "depressed"]
+# 创建公式，包括所有两两交叉项
+formula <- as.formula(paste("~ (", paste(factor_design, collapse = " + "), ")^2"))
+# 生成设计矩阵，自动处理因子变量和交叉项
+design_matrix <- model.matrix(formula, data = q2_test)[, -1]  # 去掉截距列
+
+# 转换为数据框
+design_df <- as.data.frame(design_matrix)
+
+# 使用 model.matrix 生成训练集的哑变量
+# x_train <- model.matrix(~ DBQ700 + DBQ197, data = train_data)[, -1]  # 去掉截距
+
+# 使用 model.matrix 生成测试集的哑变量
+x_test <- model.matrix(~ DBQ700 + DBQ197 -1, data = q1_test)[,-1]  # 注意：不需要包含响应变量
+
+
+# 加载必要的包
+library(glmnet)
+
+# 假设你已经训练了 lasso_model，使用 x_train 和 y_train
+# 例如：
+# lasso_model <- cv.glmnet(x_train, y_train, alpha = 1, family = "binomial")
+
+# 预测概率
+pred_probs_G <- predict.glm(step_model_2,newdata = q2_test,type = "response")
+pred_probs_L <- predict(cv_lasso_2, newx = design_matrix, type = "response")
+pred_probs_R <- predict(ridge_model_2, newx = design_matrix, type = "response")
+correct_ratio_2 <- array(dim = 3,dimnames = list(c("step","lasso","ridge")))
+# 将预测概率转换为类别
+threshold <- 0.2
+
+pred_classes_G <- ifelse(pred_probs_G > threshold, 1, 0)
+correct_ratio_2[1] <- sum(abs(pred_classes_G-(as.numeric(q2_test$depressed))))/length(pred_classes_G)
+pred_classes_L <- ifelse(pred_probs_L > threshold, 1, 0)
+correct_ratio_2[2] <- sum(abs(pred_classes_L-(as.numeric(q2_test$depressed))))/length(pred_classes_L)
+
+pred_classes_R <- ifelse(pred_probs_R > threshold, 1, 0)
+correct_ratio_2[3] <- sum(abs(pred_classes_R-(as.numeric(q2_test$depressed))))/length(pred_classes_R)
+
+print(correct_ratio_2)
+
+```
+

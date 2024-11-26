@@ -1,0 +1,6 @@
+"0","library(""tidyr"")"
+"0","df = read.csv('data.csv')"
+"0","set.seed(600)"
+"0","train = sample(c(TRUE, FALSE), nrow(df), rep=TRUE, prob=c(0.8, 0.2))"
+"0","df_train = df[train, ]"
+"0","df_test = df[!train, ]"

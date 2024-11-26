@@ -1,0 +1,187 @@
+
+import data
+```{r}
+library("tidyr")
+df = read.csv('data.csv')
+set.seed(600)
+train = sample(c(TRUE, FALSE), nrow(df), rep=TRUE, prob=c(0.8, 0.2))
+df_train = df[train, ]
+df_test = df[!train, ]
+```
+
+data pre-process: check NA and normalization for continuous; factorization for discrete
+```{r}
+# check if NA
+colSums(is.na(df))
+# rowSums(is.na(df))
+df <- df %>% drop_na(names(df))
+# 将需要的变量转换为因子
+categorical_vars <- names(df)[sapply(df,is.integer)]
+
+df[categorical_vars] <- lapply(df[categorical_vars], factor)
+
+# 将响应变量转换为因子
+df$depressed <- factor(df$depressed, levels = c(0,1))
+
+#normalize continuous covariates
+con_vars <- names(df)[sapply(df,is.numeric)]
+df[con_vars] <- scale(df[con_vars])
+```
+select covariates for our proposed Questions
+```{r}
+library(dplyr)
+#Q1 Depression Screener (DBQ)
+q1 <- df[df$DBQ197!=4,] %>%
+  select(contains("DBQ"),depressed) 
+  # names()
+# q1 <- q1[q1_var$DBQ197!=4,]
+q1_var <- q1[train,]
+  # names()
+# q1_var <- q1_var[q1_var$DBQ197!=4,]
+q1_test <- q1[!train,]
+```
+
+
+1.step model
+```{r}
+# 先拟合一个初始模型
+library(car)
+initial_model <- glm(depressed ~ ., data = q1_var, family = binomial)
+
+# 计算VIF
+vif_values <- vif(initial_model)
+vif_values
+
+# 通常，VIF > 5 或 10 表示存在多重共线性，需要处理
+
+# 逐步回归（双向选择）
+step_model <- step(initial_model, direction = "both")
+summary(step_model)
+
+```
+2.LASSO
+```{r}
+library(glmnet)
+q1_var <- q1_var[complete.cases(q1_var), ]
+
+# 准备数据
+x <- model.matrix(depressed ~ ., q1_var)[,-1]
+y <- q1_var$depressed
+
+# 交叉验证选择最佳lambda
+cv_lasso <- cv.glmnet(x, y, family = "binomial", alpha = 1)
+best_lambda <- cv_lasso$lambda.min
+
+# 拟合LASSO模型
+lasso_model <- glmnet(x, y, family = "binomial", alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+
+```
+3.ridge
+```{r}
+# 交叉验证选择最佳lambda，alpha设为0表示岭回归
+cv_ridge <- cv.glmnet(x, y, family = "binomial", alpha = 0)
+best_lambda_ridge <- cv_ridge$lambda.min
+
+# 拟合岭回归模型
+ridge_model <- glmnet(x, y, family = "binomial", alpha = 0, lambda = best_lambda_ridge)
+coef(ridge_model)
+
+```
+
+prediction
+```{r}
+# 加载必要的包
+library(dplyr)
+library(ggplot2)
+
+# 假设你的训练集为 train_data，测试集为 q1_test
+q1_test <- q1_test[complete.cases(q1_test), ]
+
+q1_test$DBQ700 <- factor(q1_test$DBQ700, levels = c("1","2", "3", "4", "5"))
+q1_test$DBQ197 <- factor(q1_test$DBQ197, levels = c("0","1", "2", "3", "4"))
+
+# 使用 model.matrix 生成训练集的哑变量
+# x_train <- model.matrix(~ DBQ700 + DBQ197, data = train_data)[, -1]  # 去掉截距
+
+# 使用 model.matrix 生成测试集的哑变量
+x_test <- model.matrix(~ DBQ700 + DBQ197 -1, data = q1_test)[,-1]  # 注意：不需要包含响应变量
+
+
+# 加载必要的包
+library(glmnet)
+
+# 假设你已经训练了 lasso_model，使用 x_train 和 y_train
+# 例如：
+# lasso_model <- cv.glmnet(x_train, y_train, alpha = 1, family = "binomial")
+
+# 预测概率
+pred_probs_G <- predict.glm(step_model,newdata = q1_test,type = "response")
+pred_probs_L <- predict(lasso_model, newx = x_test, type = "response")
+pred_probs_R <- predict(ridge_model, newx = x_test, type = "response")
+# 将预测概率转换为类别
+threshold <- 0.2
+correct_ratio_1 <- array(dim = 3,dimnames = list(c("step","lasso","ridge")))
+
+pred_classes_G <- ifelse(pred_probs_G > threshold, 1, 0)
+correct_ratio_1[1] <- sum(abs(pred_classes_G-(as.numeric(q1_test$depressed)-1)))/length(pred_classes_G)
+
+pred_classes_L <- ifelse(pred_probs_L > threshold, 1, 0)
+correct_ratio_1[2] <- sum(abs(pred_classes_L-(as.numeric(q1_test$depressed)-1)))/length(pred_classes_L)
+
+pred_classes_R <- ifelse(pred_probs_R > threshold, 1, 0)
+correct_ratio_1[3] <- sum(abs(pred_classes_R-(as.numeric(q1_test$depressed)-1)))/length(pred_classes_R)
+
+print(correct_ratio_1)
+
+```
+
+```{r}
+# 安装并加载 dplyr 包（如果尚未安装）
+install.packages("dplyr")
+library(dplyr)
+
+# 选择以 "DBQ" 开头的变量并添加 "depressed"
+selected_vars <- df %>%
+  select(starts_with("DBQ"), depressed) %>%
+  names()
+
+# 查看结果
+print(selected_vars)
+
+```
+
+```{r}
+# 计算比例并获取最大计数
+df_counts <- q1_var %>%
+  group_by(DBQ700) %>%
+  summarise(
+    count = n(),
+    depressed_count = sum(depressed == "Yes"),
+    proportion = depressed_count / count
+  )
+
+max_count <- max(df_counts$count)
+
+# 绘制直方图并添加比例折线
+ggplot(q1_var, aes(x = DBQ700, fill = depressed)) +
+  geom_histogram(position = "dodge", bins = 30, alpha = 0.7, stat = "count") +
+  geom_line(data = df_counts, aes(x = DBQ700, y = proportion * max_count, group = 1), color = "red", size = 1) +
+  geom_point(data = df_counts, aes(x = DBQ700, y = proportion * max_count), color = "red", size = 2) +
+  scale_y_continuous(
+    name = "Count",
+    sec.axis = sec_axis(~ . / max_count, name = "Depressed Proportion")
+  ) +
+  labs(
+    title = "DBQ700 分布按抑郁状态",
+    x = "Income",
+    fill = "Depressed"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.y.right = element_text(color = "red"),
+    axis.text.y.right = element_text(color = "red")
+  )
+
+```
+
