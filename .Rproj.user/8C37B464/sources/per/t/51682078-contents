@@ -120,7 +120,7 @@ pred_probs_G <- predict.glm(step_model,newdata = q1_test,type = "response")
 pred_probs_L <- predict(lasso_model, newx = x_test, type = "response")
 pred_probs_R <- predict(ridge_model, newx = x_test, type = "response")
 # 将预测概率转换为类别
-threshold <- 0.2
+threshold <- 0.075
 correct_ratio_1 <- array(dim = 3,dimnames = list(c("step","lasso","ridge")))
 
 pred_classes_G <- ifelse(pred_probs_G > threshold, 1, 0)
@@ -132,8 +132,42 @@ correct_ratio_1[2] <- sum(abs(pred_classes_L-(as.numeric(q1_test$depressed)-1)))
 pred_classes_R <- ifelse(pred_probs_R > threshold, 1, 0)
 correct_ratio_1[3] <- sum(abs(pred_classes_R-(as.numeric(q1_test$depressed)-1)))/length(pred_classes_R)
 
-print(correct_ratio_1)
+# print(correct_ratio_1)
 
+
+A = pred_classes_G
+B = as.numeric(q1_test$depressed)-1
+
+# 计算 True Positives (TP)、False Positives (FP)、True Negatives (TN)、False Negatives (FN)
+TP <- sum((A == 1) & (B == 1))
+FP <- sum((A == 1) & (B == 0))
+TN <- sum((A == 0) & (B == 0))
+FN <- sum((A == 0) & (B == 1))
+
+# 计算 FDR
+if((TP + FP) > 0) {
+  FDR <- FP / (TP + FP)
+} else {
+  FDR <- NA
+  warning("没有预测为阳性的样本（A = 1），无法计算 FDR。")
+}
+
+# 计算 Power
+if(TP + FN > 0) {
+  Power <- TP / (TP + FN)
+} else {
+  Power <- NA
+  warning("没有实际为阳性的样本（B = 1），无法计算 Power。")
+}
+
+# 计算 Accuracy
+Accuracy <- (TP + TN) / (TP + FP + TN + FN)
+
+
+# 打印结果
+cat(sprintf("False Discovery Rate (FDR): %.2f%%\n", FDR * 100))
+cat(sprintf("Power: %.2f%%\n", Power * 100))
+cat(sprintf("Accuracy: %.2f%%\n", Accuracy * 100))
 ```
 
 ```{r}
@@ -185,3 +219,51 @@ ggplot(q1_var, aes(x = DBQ700, fill = depressed)) +
 
 ```
 
+```{r}
+# Install necessary packages if not already installed
+install.packages(c("tidyr", "ggplot2", "dplyr", "reshape2", "corrplot"))
+
+# Load libraries
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+library(corrplot)
+# Identify continuous variables
+con_vars <- names(df_train)[sapply(df_train, is.numeric)]
+
+# Plot histograms for continuous variables
+for(var in q1_var[,1:2]){
+  p <- ggplot(df_train, aes_string(x = var)) +
+    geom_histogram(binwidth = 0.5, fill = "blue", color = "black", alpha = 0.7) +
+    theme_minimal() +
+    labs(title = paste("Histogram of", var), x = var, y = "Frequency")
+  print(p)
+}
+
+# Plot density plots for continuous variables
+for(var in con_vars){
+  p <- ggplot(df_train, aes_string(x = var)) +
+    geom_density(fill = "green", alpha = 0.5) +
+    theme_minimal() +
+    labs(title = paste("Density Plot of", var), x = var, y = "Density")
+  print(p)
+}
+```
+```{r}
+  corr_matrix <- cor(as.numeric(as.matrix((q1_var[,1:2]))), use = "complete.obs")
+  print("Correlation Matrix:")
+  print(round(corr_matrix, 3))
+  
+  # Visualize the correlation matrix using a heatmap
+  corrplot(corr_matrix, method = "color", type = "upper",
+           tl.col = "black", tl.srt = 45, 
+           title = "Correlation Matrix Heatmap",
+           mar = c(0,0,1,0))
+  tbl <- table(q1_var[,1], q1_var[,2])
+  
+  # 绘制马赛克图
+  mosaic(tbl, shade = TRUE, legend = TRUE, 
+         main = paste("Mosaic Plot of", 1, "vs", 2))
+
+```

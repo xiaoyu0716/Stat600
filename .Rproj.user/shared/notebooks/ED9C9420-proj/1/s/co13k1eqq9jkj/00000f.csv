@@ -1,4 +1,18 @@
 "0","library(""tidyr"")"
+"2","
+Attaching package: ‘tidyr’
+
+"
+"2","The following object is masked from ‘package:reshape2’:
+
+    smiths
+
+"
+"2","The following objects are masked from ‘package:Matrix’:
+
+    expand, pack, unpack
+
+"
 "0","df = read.csv('data.csv')"
 "0","set.seed(600)"
 "0","train = sample(c(TRUE, FALSE), nrow(df), rep=TRUE, prob=c(0.8, 0.2))"

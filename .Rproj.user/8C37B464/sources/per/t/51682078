@@ -3,7 +3,7 @@
     "path": "~/Documents/600stats/project/stat600_final/proj.Rmd",
     "project_path": "proj.Rmd",
     "type": "r_markdown",
-    "hash": "2479113118",
+    "hash": "2730286761",
     "contents": "",
     "dirty": false,
     "created": 1732543506536.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "79,2",
-        "scrollLine": "79"
+        "cursorPosition": "122,18",
+        "scrollLine": "110"
     },
     "folds": "",
-    "lastKnownWriteTime": 1732654411,
+    "lastKnownWriteTime": 1733703611,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1732654411367,
+    "last_content_update": 1733703611691,
     "read_only": false,
     "read_only_alternatives": []
 }

@@ -4,7 +4,7 @@ Question2  "DMDBORN4"  "DMDEDUC2"  "DMDMARTZ"  "INDFMPIR"  "INDFMMPC"  "depresse
 library("tidyr")
 library("dplyr")
 df = read.csv('data.csv')
-set.seed(600)
+set.seed(620)
 train = sample(c(TRUE, FALSE), nrow(df), rep=TRUE, prob=c(0.8, 0.2))
 df_train = df[train, ]
 df_test = df[!train, ]
@@ -54,6 +54,7 @@ ggplot(q2, aes(x = INDFMMPC, y = depressed, color = INDFMPIR)) +
 
 ```{r}
 # 构建不含交互项的模型
+library(car)
 model_without_interactions <- lm(depressed ~ ., data = q2_var)
 summary(model_without_interactions)
 
@@ -61,6 +62,8 @@ summary(model_without_interactions)
 model_with_interactions <- lm(depressed ~ .^2, data = q2_var)
 summary(model_with_interactions)
 
+vif_values <- vif(model_without_interactions)
+vif_values
 # 进行F检验比较两个模型
 anova(model_without_interactions, model_with_interactions)
 ```
@@ -178,5 +181,49 @@ correct_ratio_2[3] <- sum(abs(pred_classes_R-(as.numeric(q2_test$depressed))))/l
 
 print(correct_ratio_2)
 
+```
+```{r}
+# 确保 A 和 B 是二元向量，并且长度相同
+threshold <- 0.05
+
+pred_classes_G <- ifelse(pred_probs_G > threshold, 1, 0)
+
+pred_classes_L <- ifelse(pred_probs_L > threshold, 1, 0)
+
+pred_classes_R <- ifelse(pred_probs_R > threshold, 1, 0)
+
+A = pred_classes_R
+B = as.numeric(q2_test$depressed)
+
+# 计算 True Positives (TP)、False Positives (FP)、True Negatives (TN)、False Negatives (FN)
+TP <- sum((A == 1) & (B == 1))
+FP <- sum((A == 1) & (B == 0))
+TN <- sum((A == 0) & (B == 0))
+FN <- sum((A == 0) & (B == 1))
+
+# 计算 FDR
+if((TP + FP) > 0) {
+  FDR <- FP / (TP + FP)
+} else {
+  FDR <- NA
+  warning("没有预测为阳性的样本（A = 1），无法计算 FDR。")
+}
+
+# 计算 Power
+if(TP + FN > 0) {
+  Power <- TP / (TP + FN)
+} else {
+  Power <- NA
+  warning("没有实际为阳性的样本（B = 1），无法计算 Power。")
+}
+
+# 计算 Accuracy
+Accuracy <- (TP + TN) / (TP + FP + TN + FN)
+
+
+# 打印结果
+cat(sprintf("False Discovery Rate (FDR): %.2f%%\n", FDR * 100))
+cat(sprintf("Power: %.2f%%\n", Power * 100))
+cat(sprintf("Accuracy: %.2f%%\n", Accuracy * 100))
 ```
 

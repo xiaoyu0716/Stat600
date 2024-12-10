@@ -1,16 +1,5 @@
 "0","# 先拟合一个初始模型"
 "0","library(car)"
-"2","Loading required package: carData
-"
-"2","
-Attaching package: ‘car’
-
-"
-"2","The following object is masked from ‘package:dplyr’:
-
-    recode
-
-"
 "0","initial_model <- glm(depressed ~ ., data = q1_var, family = binomial)"
 "0",""
 "0","# 计算VIF"

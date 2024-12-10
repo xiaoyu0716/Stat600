@@ -1,0 +1,272 @@
+```{r}
+# 假设你有两个因子变量：var1 和 var2
+# 请将 'var1' 和 'var2' 替换为你的实际变量名
+
+# 变量1的分布
+ggplot(q1_var, aes(x = "DBQ700")) +
+  geom_bar(fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "变量1的分布", x = "变量1", y = "计数")
+
+# 变量2的分布
+ggplot(q1_var, aes(x = "DBQ197" )) +
+  geom_bar(fill = "lightgreen", color = "black") +
+  theme_minimal() +
+  labs(title = "变量2的分布", x = "变量2", y = "计数")
+
+```
+```{r}
+library(ggplot2)
+var1 ="DBQ700" 
+var2 = "DBQ197"
+ggplot(q1_var, aes(x = q1_var[,var1], fill = q1_var[,var2])) +
+  geom_bar(position = "stack") +
+  theme_minimal() +
+    # scale_fill_brewer(palette = "Set1") + 
+  scale_fill_viridis_d(option = "plasma") +  
+  labs(title = "two covariates stacking", x = "DBQ700", y = "DBQ197", fill = "DBQ197")
+
+library(vcd)
+
+mosaic(~ DBQ700 + DBQ197, data = q1_var, shade = TRUE, legend = TRUE,
+       main = "变量1与变量2的马赛克图")
+
+library(reshape2)
+library(ggplot2)
+
+# 创建列联表
+contingency_table <- table(q1_var$DBQ700, q1_var$DBQ197)
+
+# 将列联表转换为长格式
+melted_table <- melt(contingency_table)
+
+# 绘制热力图
+ggplot(melted_table, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme_minimal() +
+  labs(title = "heatmap for Q1
+       ", x = "DBQ700", y = "DBQ197", fill = "count")
+
+```
+
+```{r}
+# # 转换分类变量为因子
+# categorical_vars <- c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMMPC", "depressed")
+# q2_var[categorical_vars] <- lapply(q2_var[categorical_vars], factor)
+# 
+# # 确认转换结果
+# str(q2_var)
+
+# 定义分类变量
+categorical_vars <- c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMMPC")
+
+# 绘制每个分类变量的分布条形图（分组柱状图）
+for (var in categorical_vars) {
+  p <- ggplot(q2_var, aes_string(x = var, fill = "depressed")) +
+    geom_bar(position = "dodge", color = "black") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = paste(var, "with depressed"),
+         x = var,
+         y = "count",
+         fill = "depressed") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+}
+
+
+```
+```{r}
+# 1. 加载必要的包
+# install.packages(c("ggplot2", "GGally", "corrplot", "dplyr", "reshape2", "vcd", "RColorBrewer", "viridis"))
+library(ggplot2)
+library(GGally)
+library(corrplot)
+library(dplyr)
+library(reshape2)
+library(vcd)
+library(RColorBrewer)
+library(viridis)
+
+# # 2. 数据准备
+# df <- read.csv('data.csv')
+# set.seed(620)
+# train <- sample(c(TRUE, FALSE), nrow(df), rep = TRUE, prob = c(0.8, 0.2))
+# df_train <- df[train, ]
+# df_test <- df[!train, ]
+# 
+# q2 <- df %>%
+#   select(contains("DM"), contains("IND"), depressed) %>%
+#   drop_na()
+# 
+# q2_var <- q2[train, ]
+# q2_test <- q2[!train, ]
+
+# 3. 确认并转换变量类型
+categorical_vars <- c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMMPC", "depressed")
+q2_var[categorical_vars] <- lapply(q2_var[categorical_vars], factor)
+
+# 4. 绘图
+
+# 4.1 分类变量的分布条形图（分组柱状图）
+for (var in categorical_vars[-length(categorical_vars)]) {  # exclude 'depressed'
+  p <- ggplot(q2_var, aes_string(x = var, fill = "depressed")) +
+    geom_bar(position = "dodge", color = "black") +
+    theme_minimal() +
+    scale_fill_brewer(palette = "Set2") +
+    labs(title = paste(var, "with depression"),
+         x = var,
+         y = "count",
+         fill = "depressed") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+}
+
+# 4.2 百分比堆积柱状图
+for (var in categorical_vars[-length(categorical_vars)]) {  # exclude 'depressed'
+  p <- ggplot(q2_var, aes_string(x = var, fill = "depressed")) +
+    geom_bar(position = "fill", color = "black") +  # position = "fill" 显示比例
+    theme_minimal() +
+    scale_fill_brewer(palette = "Pastel1") +
+    labs(title = paste(var, "with depression"),
+         x = var,
+         y = "portion",
+         fill = "depressed") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(labels = scales::percent)
+  
+  print(p)
+}
+
+# 4.3 数值变量的箱线图
+ggplot(q2_var, aes(x = depressed, y = INDFMPIR, fill = depressed)) +
+  geom_boxplot(alpha = 0.7) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "INDFMPIR under different depression status",
+       x = "depressed",
+       y = "INDFMPIR",
+       fill = "depressed") +
+  theme(legend.position = "none")
+
+# 4.4 小提琴图
+ggplot(q2_var, aes(x = depressed, y = INDFMPIR, fill = depressed)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "INDFMPIR with depressed",
+       x = "depressed",
+       y = "INDFMPIR",
+       fill = "depressed") +
+  theme(legend.position = "none")
+
+# 4.5 马赛克图
+factor_pairs <- list(
+  c("DMDBORN4", "DMDEDUC2"),
+  c("DMDBORN4", "DMDMARTZ"),
+  c("DMDEDUC2", "DMDMARTZ"),
+  c("DMDBORN4", "INDFMMPC"),
+  c("DMDEDUC2", "INDFMMPC"),
+  c("DMDMARTZ", "INDFMMPC")
+)
+
+for (pair in factor_pairs) {
+  mosaic_formula <- as.formula(paste("~", pair[1], "+", pair[2]))
+  
+  # 绘制马赛克图
+  print(mosaic(mosaic_formula, data = q2_var, shade = TRUE, legend = TRUE,
+         main = paste(pair[1], "&", pair[2], "mosic")))
+}
+
+# 4.6 散点图
+ggplot(q2_var, aes(x = INDFMPIR, y = INDFMMPC, color = depressed)) +
+  geom_jitter(alpha = 0.5, width = 0.2, height = 0.2) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "INDFMPIR & INDFMMPC scatter plotting",
+       x = "INDFMPIR",
+       y = "INDFMMPC",
+       color = "depressed")
+
+# 4.7 散点矩阵
+p_s = ggpairs(q2_var,
+        columns = c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMPIR", "INDFMMPC"),
+        aes(color = depressed),
+        upper = list(continuous = wrap("cor", size = 3)),
+        lower = list(continuous = "smooth"),
+        diag = list(continuous = "barDiag"),
+        title = "Question2 scatter plotting")
+ggsave("Question2_scatter_plot.png", plot = p_s, width = 12, height = 12, dpi = 300)
+```
+
+```{r}
+# 加载必要的包
+library(GGally)
+library(ggplot2)
+# p <- ggpairs(q2_var,
+#             columns = c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMPIR", "INDFMMPC"),
+#             upper = list(continuous = wrap("cor", size = 3)),
+#             lower = list(continuous = "smooth"),
+#             diag = list(continuous = "barDiag"),
+#             title = "Question2 变量关系图") +
+#       theme_light()+
+#   # +  # 使用简洁的主题
+#   scale_color_brewer(palette = "Set2") +  # 设置颜色调色板
+#   scale_fill_brewer(palette = "Set2")    
+# print(p)
+# library(GGally)
+# library(ggplot2)
+
+# 自定义相关系数函数
+custom_cor <- function(data, mapping, ...) {
+  # 提取x和y变量
+  x <- eval_data_col(data, mapping$x)
+  y <- eval_data_col(data, mapping$y)
+  
+  # 计算相关系数
+  corr <- cor(x, y, use = "complete.obs")
+  
+  # 确定文本颜色
+  text_color <- ifelse(abs(corr) > 0.7, "red",
+                       ifelse(abs(corr) > 0.4, "orange", "black"))
+  
+  # 创建带颜色的相关系数文本
+  ggally_text(
+    label = sprintf("%.2f", corr),
+    mapping = aes(),
+    color = text_color,
+    ...
+  ) + 
+    theme_void()
+}
+custom_smooth <- function(data, mapping, ...) {
+  ggplot(data, mapping) +
+    geom_point(alpha = 0.6, color = "#1f77b4") +  # 设置散点颜色
+    geom_smooth(method = "lm", color = "#ff7f0e", fill = "#ffbb78", ...) +  # 设置光滑线颜色
+    theme_minimal()
+}
+# 创建 ggpairs 图对象，使用自定义相关系数函数
+# 创建 ggpairs 图对象，应用自定义函数
+p <- ggpairs(
+  q2_var,
+  columns = c("DMDBORN4", "DMDEDUC2", "DMDMARTZ", "INDFMPIR", "INDFMMPC"),
+  upper = list(continuous = wrap(custom_cor)),  # 上三角使用自定义相关系数函数
+  lower = list(continuous = wrap(custom_smooth)),  # 下三角使用自定义光滑线和散点图函数
+  diag = list(continuous = "barDiag"),  # 对角线显示条形图
+  title = "Question2 relationship within covariates"
+) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold")
+  )
+
+# 打印图表
+print(p)
+
+```
+
+

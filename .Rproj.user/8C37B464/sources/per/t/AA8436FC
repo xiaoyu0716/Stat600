@@ -3,7 +3,7 @@
     "path": "~/Documents/600stats/project/stat600_final/q2.Rmd",
     "project_path": "q2.Rmd",
     "type": "r_markdown",
-    "hash": "3295243011",
+    "hash": "807634778",
     "contents": "",
     "dirty": false,
     "created": 1732647865341.0,
@@ -12,15 +12,15 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "1,11",
-        "scrollLine": "0"
+        "cursorPosition": "226,50",
+        "scrollLine": "195"
     },
     "folds": "",
-    "lastKnownWriteTime": 1732654413,
+    "lastKnownWriteTime": 1733703606,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1732654413239,
+    "last_content_update": 1733703606705,
     "read_only": false,
     "read_only_alternatives": []
 }

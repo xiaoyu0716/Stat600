@@ -1,0 +1,172 @@
+Inference code file
+
+loading relevant package
+```{r}
+library(knitr)
+library(ggplot2)
+```
+## Question 1
+We want to test whether different levels of DBQ700 or DBQ197 will have the same power for predicting depression.
+
+According to the predicting error on test data, we choose threshold = 0.2 and LASSO model, which has the smallest PE among three models.
+
+load modeling codes for Question 1
+```{r}
+knit("proj.Rmd")
+model1 = lasso_model
+df1 = q1
+x1 <- model.matrix(depressed ~ ., df1)[,-1]
+y1 <- df1$depressed
+```
+First we use bootstrap method to check if the variables with zero-coefficient is reasonable in the selected Lasso model.
+```{r}
+n_bootstrap <- 1000
+bootstrap_results <- matrix(NA, n_bootstrap, ncol(x1))
+
+# Perform bootstrapping
+set.seed(0)  
+
+for (i in 1:n_bootstrap) {
+  # Create bootstrap sample
+  sample_idx <- sample(1:nrow(df1), replace = TRUE)
+  x1_boot <- x1[sample_idx, , drop = FALSE]
+  y1_boot <- y1[sample_idx]
+  
+  # Fit LASSO model
+  lasso_model <- glmnet(x1_boot, y1_boot, family = "binomial", alpha = 1, lambda = model1$lambda)
+  
+  # Store coefficients (just the ones for the original variables)
+  bootstrap_results[i, ] <- coef(lasso_model)[-1]  
+}
+
+# Calculate how often each variable's coefficient is zero 
+zero_freq <- colMeans(bootstrap_results == 0)
+cat("Frequency of zero coefficients across bootstrap samples:\n")
+print(zero_freq)
+```
+
+Now we want to test the difference between two levels
+```{r}
+set.seed(0)
+n_bootstrap <- 1000
+bootstrap_results <- matrix(NA, n_bootstrap, 4)
+
+# Perform bootstrapping
+set.seed(0)  
+
+for (i in 1:n_bootstrap) {
+  # Create bootstrap sample
+  sample_idx <- sample(1:nrow(df1), replace = TRUE)
+  x1_boot <- x1[sample_idx, , drop = FALSE]
+  y1_boot <- y1[sample_idx]
+  
+  # Fit LASSO model
+  lasso_model <- glmnet(x1_boot, y1_boot, family = "binomial", alpha = 1, lambda = model1$lambda)
+  
+  # Store coefficients
+  bootstrap_results[i, ] <- c(coef(lasso_model)[5],coef(lasso_model)[5]-coef(lasso_model)[2:4]) 
+}
+
+
+# Calculate 95% confidence interval for the difference
+boot_ci <- apply(bootstrap_results, 2, function(col) quantile(col, c(0.025, 0.975)))
+colnames(boot_ci) = paste0("level",1:4)
+print(boot_ci)
+```
+```{r}
+## draw figure for confidence interval
+ci_df <- data.frame(
+  Variable =  paste0("level",1:4),  # Remove the intercept
+  Coefficient = c(coef(model1)[5],coef(model1)[5]-coef(model1)[2:4]), 
+  CI_Lower = boot_ci[1, ],
+  CI_Upper = boot_ci[2, ]
+)
+
+ggplot(ci_df, aes(x = Variable, y = Coefficient, color = Variable)) + geom_crossbar(aes(x = Variable, ymin = CI_Lower, ymax = CI_Upper), width = 0.7)+
+  labs(x = "Levels", y = "Coefficient Value") + ggtitle("Coefficients with 95% Confidence Intervals")+theme(legend.position = "none") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+## Question 2
+In this question, we incoporate pairwise interactive terms into the model and we want to investigate whether they are significant.
+
+According to the predicting error on test data, we choose threshold = 0.2 and step model, which has the small prediction error and relatively large power compared to other two models.
+
+load modeling codes for Question 2
+```{r}
+knit("q2.Rmd")
+model2 = step_model_2
+df2 = q2
+x2 <- model.matrix(depressed ~ .^2, data = df2)[,-1]
+y2 <- df2$depressed
+```
+In the step model, we want to test if the interactive terms are all significant. Here we use three kinds of multiple testing.
+
+use Bonferroni method
+```{r}
+# Extract p-values for the interaction terms from the summary
+interaction_terms <- summary(step_model_2)$coefficients[, 4]
+
+interaction_pvalues <- interaction_terms[grepl(":", names(interaction_terms))]
+
+# Apply Bonferroni 
+bonferroni_pvalues <- p.adjust(interaction_pvalues, method = "bonferroni")
+
+bonferroni_pvalues[bonferroni_pvalues <= 0.05] 
+bonferroni_pvalues
+```
+Under level alpha=0.05, we reject the global hyphothesis. Because Bonferonni correction tends to be very conservative since it controls for FWER, below we try Holm's method.
+
+Holm's method
+```{r}
+# Apply Holm's correction
+holm_pvalues <- p.adjust(interaction_pvalues, method = "holm")
+
+holm_pvalues[holm_pvalues <= 0.05] 
+holm_pvalues
+```
+use BH's method
+```{r}
+BH_pvalues <- p.adjust(interaction_pvalues, method = "BH")
+
+BH_pvalues[BH_pvalues <= 0.05] 
+BH_pvalues
+```
+Now we want to test each individual interaction term in the selected model. Here we use F test.
+```{r}
+drop1(step_model_2, test = "F")
+```
+The interaction between INDFMPIR:INDFMMPC is significant, and the interaction between INDFMMPC:DMDEDUC2 is worth mentioning.
+
+Next we build the confidence interval for the interaction terms in the selected step model.
+
+```{r}
+confint = matrix(NA, 3, 3)
+colnames(confint) = c("estimate", "lower", "upper")
+for(i in 1:3)
+{
+  eta = rep(0,9)
+  eta[6+i] = 1
+  contrast  = multcomp::glht(step_model_2, matrix(eta, 1))
+  confint[i,] = as.vector(confint(contrast)[]$confint)
+}
+```
+
+```{r}
+## visualization
+ci_df <- data.frame(
+  Variable =  c("income:poverty", "poverty:education", "nationality:marriage"), 
+  Coefficient = confint[,1],
+  CI_Lower = confint[,2],
+  CI_Upper = confint[,3]
+)
+
+ggplot(ci_df, aes(x = Variable, y = Coefficient, color = Variable)) + geom_crossbar(aes(x = Variable, ymin = CI_Lower, ymax = CI_Upper), width = 0.7)+
+  labs(x = "Interactive term", y = "Coefficient Value")+theme(legend.position = "none")
+```
+
+Finally we compare the selected step model with the linear model without any interactive terms 
+```{r}
+anova(model_without_interactions, model2)
+```
+the p-value<0.05, which means the whole interaction terms in the step model are more likely to be significant.
